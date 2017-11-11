@@ -29,7 +29,16 @@ import java.util.HashSet;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.regex.Pattern;
+import ru.org.sevn.common.solr.SolrIndexer;
 
+//keep
+//keeptill
+//fix
+//change
+//
+//fix
+//tmp
+//change
 public class StoreDistribute implements Runnable {
     public static final String DIR_INDIR = "in";
     public static final String DIR_ERROR = "error";
@@ -57,7 +66,11 @@ public class StoreDistribute implements Runnable {
     private File storageDirTmp;
     private File storageDirChange;
     
-    public StoreDistribute(File storeDir) {
+    private FixStoreFileManager fixStoreFileManager;
+    private TempStoreFileManager tempStoreFileManager;
+    private ChangeStoreFileManager changeStoreFileManager;
+    
+    public StoreDistribute(File storeDir, SolrIndexer indexer) {
         this.storeDir = storeDir;
         inDir = mkDir(storeDir, DIR_INDIR);
         errorDir = mkDir(storeDir, DIR_ERROR);
@@ -71,6 +84,10 @@ public class StoreDistribute implements Runnable {
         storageDirFix = mkDir(storageDir, DIR_FIX);
         storageDirTmp = mkDir(storageDir, DIR_TMP);
         storageDirChange = mkDir(storageDir, DIR_CHANGE);
+        
+        fixStoreFileManager = new FixStoreFileManager(storageDirFix, indexer);
+        tempStoreFileManager = new TempStoreFileManager(storageDirTmp, indexer);
+        changeStoreFileManager = new ChangeStoreFileManager(storageDirChange, indexer);
     }
     
     private File mkDir(File parent, String name) {
@@ -94,17 +111,17 @@ public class StoreDistribute implements Runnable {
     }
     
     private StoreFileManager getStoreFileManager(PersistType pt) {
-            //TODO index and move
             switch(pt) {
                 case FIX:
-                    break;
+                    return fixStoreFileManager;
                 case TEMP:
-                    break;
+                    return tempStoreFileManager;
                 case CHANGE:
-                    break;
+                    return changeStoreFileManager;
             }
         return null; //TODO
     }
+    // /#tag1/#tag2/#tag3/
     private void processFile(File basedir, PersistType pt, File file, HashSet<String> tags, KeepInfo keepInfo) {
         if (file.isDirectory() && file.getName().startsWith("#")) {
             for (File f : file.listFiles()) {
@@ -148,6 +165,8 @@ public class StoreDistribute implements Runnable {
         ki.dateOff = dateOff;
         processKeep(f, ki);
     }
+    
+    @Override
     public void run() {
         processFix();
         processChange();

@@ -16,11 +16,12 @@
 package ru.org.sevn.tfstore;
 
 import java.io.File;
+import ru.org.sevn.common.solr.SolrIndexer;
 
 public class ChangeStoreFileManager extends AbstractStoreFileManager {
 
-    public ChangeStoreFileManager(File dir) {
-        super(dir);
+    public ChangeStoreFileManager(File dir, SolrIndexer indexer) {
+        super(dir, indexer);
     }
 
     @Override

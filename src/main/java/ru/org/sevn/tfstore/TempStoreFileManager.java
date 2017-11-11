@@ -19,15 +19,17 @@ import java.io.File;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.text.SimpleDateFormat;
+import ru.org.sevn.common.solr.SolrIndexer;
 
 public class TempStoreFileManager extends AbstractStoreFileManager {
 
     private SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd");
     
-    public TempStoreFileManager(File dir) {
-        super(dir);
+    public TempStoreFileManager(File dir, SolrIndexer indexer) {
+        super(dir, indexer);
     }
 
+    @Override
     protected Path makeRelativePath(FileInfo file) {
         Path fileRelPath = super.makeRelativePath(file);
         Path ret = Paths.get(sdf.format(file.getDateOff()));

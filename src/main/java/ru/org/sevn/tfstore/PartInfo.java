@@ -15,15 +15,19 @@
  */
 package ru.org.sevn.tfstore;
 
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 public class PartInfo {
     
-    Date backUpDate;
-    long size;
-    int num;
+    private Date backUpDate;
+    private long size;
+    private int num;
+    private ArrayList<FileInfo> files2index = new ArrayList<>();
 
     public Map getProperties() {
         LinkedHashMap ret = new LinkedHashMap();
@@ -32,6 +36,8 @@ public class PartInfo {
         }
         ret.put("size", size);
         ret.put("num", num);
+        
+        ret.put("files2index", files2index.stream().map(e -> e.getProperties()).collect(Collectors.toList()));
         return ret;
     }
 
@@ -45,6 +51,11 @@ public class PartInfo {
         }
         if (m.containsKey("backUpDate")) {
             pi.backUpDate = new Date(Long.parseLong((String) m.get("backUpDate")));
+        }
+        if (m.containsKey("files2index")) {
+            for(Object e : ((Collection)m.get("files2index"))) {
+                pi.files2index.add(FileInfo.fromMap((Map)e));
+            }
         }
         return pi;
     }
@@ -65,6 +76,10 @@ public class PartInfo {
         this.size = size;
     }
 
+    public void incrSize(long size) {
+        this.size += size;
+    }
+    
     public int getNum() {
         return num;
     }
@@ -73,4 +88,16 @@ public class PartInfo {
         this.num = num;
     }
     
+    public void addFileInfo(FileInfo s) {
+        files2index.add(s);
+    }
+    
+    public void removeFileInfo(FileInfo s) {
+        files2index.remove(s);
+    }
+    
+    public ArrayList<FileInfo> getFileInfoList() {
+        ArrayList<FileInfo> ret = new ArrayList<>(files2index);
+        return ret;
+    }
 }

@@ -36,45 +36,56 @@ public abstract class AbstractStoreFileManager implements StoreFileManager {
     
     public static String PART_NAME = "p";
     public static String PART_INFO = ".info";
-    public static String PART_DATA = "data";
-    // dir/dir1/data
-    // dir/dir1/.info
-    // dir/.info
+    // dir/dir1/
+    // dir/dir1.info
     private final File dir;
     private int lastnum = 0;
     private HashMap<Integer, PartInfo> parts = new HashMap();
     private SolrIndexer indexer;
 
-    private synchronized void storeFileInfo(FileInfo file) {
-        //TODO store
+    private synchronized void storeFileInfo(PartInfo pi, FileInfo file) {
+        if (file.isIndexed()) {
+            pi.removeFileInfo(file);
+        } else {
+            pi.addFileInfo(file);
+        }
+        try {
+            writePartInfo(pi);
+        } catch (Exception ex) {
+            //TODO FATAL
+            Logger.getLogger(AbstractStoreFileManager.class.getName()).log(Level.SEVERE, null, ex);
+        }
     }
     
-    
-    public AbstractStoreFileManager(File dir) {
+    public AbstractStoreFileManager(File dir, SolrIndexer indexer) {
+        this.indexer = indexer;
         this.dir = dir;
-        for (File f : dir.listFiles()) {
+        for (File f : dir.listFiles()) { 
             if (f.isDirectory() && nameP.matcher(f.getName()).matches()) {
                 PartInfo pi = readPartInfo(f);
-                lastnum = Math.max(lastnum, pi.num);
-                if (pi.backUpDate == null) {
-                    parts.put(pi.num, pi);
+                lastnum = Math.max(lastnum, pi.getNum());
+                if (pi.getBackUpDate() == null) { //NO BACK UP
+                    parts.put(pi.getNum(), pi);
+                    //restore index queue
+                    for (FileInfo fi : pi.getFileInfoList()) {
+                        index(fi, pi);
+                    }
                 }
             }
         }
-
     }
     
-    protected synchronized PartInfo getPartInfoFor(FileInfo fi) {
+    protected synchronized PartInfo selectPartInfoFor(FileInfo fi) {
         for(PartInfo pi : parts.values()) {
-            if (pi.size + fi.getFileSize() < MAX_SIZE) {
+            if (pi.getSize() + fi.getFileSize() < MAX_SIZE) {
                 return pi;
             }
         }
         PartInfo npi = new PartInfo();
-        npi.num = this.lastnum + 1;
-        this.lastnum = npi.num;
-        parts.put(npi.num, npi);
-        File npiFile = getPartDataDir(npi.num);
+        npi.setNum(this.lastnum + 1);
+        this.lastnum = npi.getNum();
+        parts.put(npi.getNum(), npi);
+        File npiFile = getPartDataDir(npi.getNum());
         npiFile.mkdirs();
         return npi;
     }
@@ -83,15 +94,15 @@ public abstract class AbstractStoreFileManager implements StoreFileManager {
         PartInfo ret = new PartInfo();
         
         try {
-            File f = new File(dir, PART_INFO);
-            int num = Integer.parseInt(f.getName().substring(1));
+            File f = new File(dir.getParent(), dir.getName() + PART_INFO);
+            int num = Integer.parseInt(dir.getName().substring(1));
             Path fpath = Paths.get(f.getAbsolutePath());
             if (f.exists()) {
                 String fstr = new String(Files.readAllBytes(fpath), "UTF-8");
                 ret = PartInfo.fromMap((Map)ObjectBuilder.fromJSON(fstr));
             }
-            ret.num = num;
-            ret.size = FileInfo.calculatePathSize(fpath);
+            ret.setNum(num);
+            ret.setSize(FileInfo.calculatePathSize(fpath));
         } catch (Exception ex) {
             Logger.getLogger(AbstractStoreFileManager.class.getName()).log(Level.SEVERE, null, ex);
             return null;
@@ -100,7 +111,7 @@ public abstract class AbstractStoreFileManager implements StoreFileManager {
     }
     
     protected File getPartDataDir(int num) {
-        return new File(new File(dir, PART_NAME + num), PART_DATA);
+        return new File(dir, PART_NAME + num);
     }
     
     protected Path makeRelativePath(FileInfo file) {
@@ -111,44 +122,48 @@ public abstract class AbstractStoreFileManager implements StoreFileManager {
     
     @Override
     public Errors addFileIn(FileInfo file) {
-        PartInfo pi = getPartInfoFor(file);
-        pi.size += file.getFileSize();
+        PartInfo pi = selectPartInfoFor(file);
+        pi.incrSize(file.getFileSize());
         
-        Path toDirPath = Paths.get(getPartDataDir(pi.num).getAbsolutePath());
+        Path toDirPath = Paths.get(getPartDataDir(pi.getNum()).getAbsolutePath());
         Path toFile = toDirPath.resolve(makeRelativePath(file));
         if (file.getPath().toFile().renameTo(toFile.toFile())) {
             file.setPath(toFile, toDirPath);
-            storeFileInfo(file);
+            storeFileInfo(pi, file);
             //(String wpath, String path, File fl, String title, Consumer<Throwable> result) {
 
-            HashMap<String, Object> tags = new HashMap();
-            tags.put("tags_ss", file.getTags().toArray());
-            indexer.addDocAsync(
-                    getStoreIdName(), 
-                    getRelative(dir, file.getPath().toFile()), 
-                    file.getPath().toFile(), 
-                    file.getName(), 
-                    tags,
-                    new Consumer<Throwable>() {
-                        
-                @Override
-                public void accept(Throwable t) {
-                    if (t == null) {
-                        
-                        indexer.commitAsync(new Consumer<Throwable>() {
-                            @Override
-                            public void accept(Throwable t) {
-                                if (t == null) {
-                                    file.setIndexed(true);
-                                    storeFileInfo(file);
-                                }
-                            }
-                        });
-                    }
-                }
-            });
+            index(file, pi);
         }
         return null;
+    }
+    
+    private void index(FileInfo file, PartInfo pi) {
+        HashMap<String, Object> tags = new HashMap();
+        tags.put("tags_ss", file.getTags().toArray());
+        indexer.addDocAsync(
+                getStoreIdName(), 
+                getRelative(dir, file.getPath().toFile()), 
+                file.getPath().toFile(), 
+                file.getName(), 
+                tags,
+                new Consumer<Throwable>() {
+
+            @Override
+            public void accept(Throwable t) {
+                if (t == null) {
+
+                    indexer.commitAsync(new Consumer<Throwable>() {
+                        @Override
+                        public void accept(Throwable t) {
+                            if (t == null) {
+                                file.setIndexed(true);
+                                storeFileInfo(pi, file);
+                            }
+                        }
+                    });
+                }
+            }
+        });
     }
     
     protected abstract String getStoreIdName(); 
@@ -187,7 +202,7 @@ public abstract class AbstractStoreFileManager implements StoreFileManager {
     }
     
     protected void writePartInfo(PartInfo pi) throws Exception {
-        File pfile = new File(new File(dir, PART_NAME + pi.num), PART_INFO);
+        File pfile = new File(dir, PART_NAME + pi.getNum() + PART_INFO);
         Path path = Paths.get(pfile.getAbsolutePath());
         byte[] bytes;
         bytes = JSONUtil.toJSON(pi.getProperties()).getBytes("UTF-8");

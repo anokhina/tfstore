@@ -27,6 +27,7 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
+import org.json.JSONObject;
 
 public class FileInfo {
 
@@ -46,7 +47,9 @@ public class FileInfo {
     }
     
     public static FileInfo fromMap(Map m) {
-        FileInfo fi = new FileInfo();
+        return fromMap(m, new FileInfo());
+    }
+    public static FileInfo fromMap(Map m, FileInfo fi) {
         String path = (String)m.get("path");
         String root = (String)m.get("root");
         Long dateOff = (Long)m.get("dateOff");
@@ -154,5 +157,19 @@ public class FileInfo {
         }
         return 0L;
     }
-    
+    public JSONObject getJSONObject() /*throws Exception*/ {
+        JSONObject ret = new JSONObject();
+        Map<String, Object> props = getProperties();
+        for (String k : props.keySet()) {
+            ret.put(k, props.get(k));
+        }
+        return ret;
+    }
+    public void fromJSONObject(JSONObject jo) /*throws Exception*/ {
+        Map ret = new LinkedHashMap();
+        for (String k : jo.keySet()) {
+            ret.put(k, jo.get(k));
+        }
+        fromMap(ret, this);
+    }
 }
