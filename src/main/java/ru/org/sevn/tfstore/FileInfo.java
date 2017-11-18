@@ -145,6 +145,10 @@ public class FileInfo {
         }
         return fileSize;
     }
+    public long getFileSizeCalculated() {
+        fileSize = calculatePathSize(path);
+        return fileSize;
+    }
     public static long calculatePathSize(Path path) { //TODO
         try {
             if (Files.isDirectory(path)) {

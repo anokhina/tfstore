@@ -26,6 +26,7 @@ public class FixStoreFileManager extends AbstractStoreFileManager {
 
     @Override
     protected String getStoreIdName() {
-        return "fix";
+        return getDir().getName();
+        //return "fix";
     }
 }

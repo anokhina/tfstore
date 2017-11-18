@@ -23,7 +23,7 @@ public class App extends AbstractApp {
         super(NAME, onstop);
     }
     
-    public void run() {
+    public void runTask() {
         System.out.println("rrrrrrrrrrr");
     }
             /*
@@ -37,6 +37,10 @@ public class App extends AbstractApp {
         if (!svrjmx.runApp(new App(svrjmx.getStopRunnable()))) {
             svrjmx.stopQuiet();
         }
+    }
+
+    @Override
+    public void cmd(String cmd) {
     }
     
 }

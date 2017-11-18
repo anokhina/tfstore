@@ -44,13 +44,13 @@ public class PartInfo {
     public static PartInfo fromMap(Map m) {
         PartInfo pi = new PartInfo();
         if (m.containsKey("size")) {
-            pi.size = Long.parseLong((String) m.get("size"));
+            pi.size = Long.parseLong(m.get("size").toString());
         }
         if (m.containsKey("num")) {
-            pi.num = Integer.parseInt((String) m.get("num"));
+            pi.num = Integer.parseInt(m.get("num").toString());
         }
         if (m.containsKey("backUpDate")) {
-            pi.backUpDate = new Date(Long.parseLong((String) m.get("backUpDate")));
+            pi.backUpDate = new Date(Long.parseLong(m.get("backUpDate").toString()));
         }
         if (m.containsKey("files2index")) {
             for(Object e : ((Collection)m.get("files2index"))) {

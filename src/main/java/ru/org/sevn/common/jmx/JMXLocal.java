@@ -89,6 +89,27 @@ public class JMXLocal {
         JMXLocal jmxl = new JMXLocal(port);
         return jmxl.stopAppQuiet(name);
     }
+    public static boolean forceAppQuiet(int port, String name, String cmd) {
+        JMXLocal jmxl = new JMXLocal(port);
+        return jmxl.forceAppQuiet(name, cmd);
+    }
+    
+    public  boolean forceAppQuiet(String name, String cmd) {
+        try {
+            return runAppCmd(name, cmd);
+        } catch (IOException ex) {
+            Logger.getLogger(JMXLocal.class.getName()).log(Level.SEVERE, null, ex);
+        } catch (MalformedObjectNameException ex) {
+            Logger.getLogger(JMXLocal.class.getName()).log(Level.SEVERE, null, ex);
+        }
+        return false;
+    }
+    
+    public  boolean runAppCmd(String name, String cmd) throws IOException, MalformedURLException, MalformedObjectNameException {
+        AppMBean mbeanProxy = getProxy(name);
+        mbeanProxy.cmd(cmd);
+        return true;
+    }
     
     public boolean stopAppQuiet(String name) {
         try {
@@ -101,13 +122,8 @@ public class JMXLocal {
         return false;
     }
     public boolean stopApp(String name) throws MalformedURLException, IOException, MalformedObjectNameException {
-        System.out.println("Connect to JMX service.");
-        JMXServiceURL url = new JMXServiceURL(this.serverUrl);
-        JMXConnector jmxc = JMXConnectorFactory.connect(url, null);
         try {
-            MBeanServerConnection mbsc = jmxc.getMBeanServerConnection();
-            ObjectName mbeanName = new ObjectName(name);
-            AppMBean mbeanProxy = javax.management.JMX.newMBeanProxy(mbsc, mbeanName, AppMBean.class, true);
+            AppMBean mbeanProxy = getProxy(name);
 
             System.out.println("Connected to: "+mbeanProxy.getObjectName()+", the app is "+(mbeanProxy.isRunning() ? "" : "not ")+"running");
             mbeanProxy.stop(); 
@@ -115,6 +131,15 @@ public class JMXLocal {
         } finally {
             //jmxc.close();
         }
+    }
+    
+    public AppMBean getProxy(String name) throws MalformedURLException, IOException, MalformedObjectNameException {
+        System.out.println("Connect to JMX service.");
+        JMXServiceURL url = new JMXServiceURL(this.serverUrl);
+        JMXConnector jmxc = JMXConnectorFactory.connect(url, null);
+        MBeanServerConnection mbsc = jmxc.getMBeanServerConnection();
+        ObjectName mbeanName = new ObjectName(name);
+        return javax.management.JMX.newMBeanProxy(mbsc, mbeanName, AppMBean.class, true);        
     }
     
     public boolean runApp(AppMBean amb) {

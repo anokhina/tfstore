@@ -15,10 +15,13 @@
  */
 package ru.org.sevn.tfstore;
 
-public interface AppMBean {
-    String getObjectName();
-    void start();
-    void stop();
-    void cmd(String cmd);
-    boolean isRunning();
+import ru.org.sevn.common.jmx.JMXLocal;
+
+public class AppCmd {
+
+    public static void main(String[] args) {
+        String cmd = "forceUpdate";
+        cmd = "deleteAll";
+        JMXLocal.forceAppQuiet(9999, App.NAME, cmd);
+    }
 }

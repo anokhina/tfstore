@@ -19,6 +19,7 @@ import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
@@ -127,19 +128,23 @@ public abstract class AbstractStoreFileManager implements StoreFileManager {
         
         Path toDirPath = Paths.get(getPartDataDir(pi.getNum()).getAbsolutePath());
         Path toFile = toDirPath.resolve(makeRelativePath(file));
-        if (file.getPath().toFile().renameTo(toFile.toFile())) {
+        File toFileFile = toFile.toFile();
+        toFileFile.getParentFile().mkdirs();
+        if (file.getPath().toFile().renameTo(toFileFile)) {
             file.setPath(toFile, toDirPath);
             storeFileInfo(pi, file);
             //(String wpath, String path, File fl, String title, Consumer<Throwable> result) {
 
             index(file, pi);
+        } else {
+            // TODO error
         }
         return null;
     }
     
     private void index(FileInfo file, PartInfo pi) {
         HashMap<String, Object> tags = new HashMap();
-        tags.put("tags_ss", file.getTags().toArray());
+        tags.put("tags_ss", new ArrayList<String>(file.getTags()));
         indexer.addDocAsync(
                 getStoreIdName(), 
                 getRelative(dir, file.getPath().toFile()), 
@@ -171,7 +176,7 @@ public abstract class AbstractStoreFileManager implements StoreFileManager {
     //TODO move to util
     public static String getRelative(File dir, File file) {
         Path dirPath = Paths.get(dir.getAbsolutePath());
-        Path filePath = Paths.get(dir.getAbsolutePath());
+        Path filePath = Paths.get(file.getAbsolutePath());
         return dirPath.relativize(filePath).toString();
     }
     
@@ -227,5 +232,9 @@ public abstract class AbstractStoreFileManager implements StoreFileManager {
 
     public void setIndexer(SolrIndexer indexer) {
         this.indexer = indexer;
+    }
+
+    public File getDir() {
+        return dir;
     }
 }

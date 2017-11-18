@@ -46,6 +46,7 @@ public abstract class AbstractApp implements AppMBean, Runnable {
     }
     
     private void runIt(long initialDelay) {
+        System.out.println("Schedule");
         scheduledFuture = executor.scheduleAtFixedRate(this, initialDelay, period, unit);
     }
     
@@ -53,6 +54,7 @@ public abstract class AbstractApp implements AppMBean, Runnable {
         if (executor != null) {
             executor.schedule(new Runnable() {
                 public void run() { 
+                    System.out.println("Try interrupt and force running");
                     if (scheduledFuture == null || scheduledFuture.cancel(false)) {
                         runIt(0);
                     }
@@ -69,12 +71,33 @@ public abstract class AbstractApp implements AppMBean, Runnable {
     @Override
     public void stop() {
         System.out.println("remote stop called");
-        scheduledFuture.cancel(false);
+        if (executor != null) {
+            executor.schedule(new Runnable() {
+                public void run() { 
+                    System.out.println("Try interrupt and stop");
+                    if (scheduledFuture == null || scheduledFuture.cancel(false)) {
+                        doStop();
+                    }
+                }
+            }, 0, TimeUnit.SECONDS);        
+        } else {
+            doStop();
+        }
+    }
+    
+    private void doStop() {
         scheduledFuture = null;
         executor = null;
         clean();
         if (onstop != null) {
             onstop.run();
+        }
+    }
+    
+    public final void run() {
+        runTask();
+        if (scheduledFuture.isCancelled()) {
+            doStop();
         }
     }
     
@@ -93,4 +116,6 @@ public abstract class AbstractApp implements AppMBean, Runnable {
     }
     
     protected void init() {}
+
+    protected abstract void runTask();
 }

@@ -25,7 +25,9 @@ import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.regex.Pattern;
@@ -62,15 +64,12 @@ public class StoreDistribute implements Runnable {
     private File change;
     
     private File storageDir;
-    private File storageDirFix;
-    private File storageDirTmp;
-    private File storageDirChange;
     
-    private FixStoreFileManager fixStoreFileManager;
+    private Map<String, FixStoreFileManager> fixStoreFileManagerMap = new HashMap<>();
     private TempStoreFileManager tempStoreFileManager;
     private ChangeStoreFileManager changeStoreFileManager;
     
-    public StoreDistribute(File storeDir, SolrIndexer indexer) {
+    public StoreDistribute(File storeDir, SolrIndexer indexer, String[] fixStores) {
         this.storeDir = storeDir;
         inDir = mkDir(storeDir, DIR_INDIR);
         errorDir = mkDir(storeDir, DIR_ERROR);
@@ -81,14 +80,21 @@ public class StoreDistribute implements Runnable {
         fix = mkDir(inDir, DIR_FIX);
         change = mkDir(inDir, DIR_CHANGE);
         
-        storageDirFix = mkDir(storageDir, DIR_FIX);
-        storageDirTmp = mkDir(storageDir, DIR_TMP);
-        storageDirChange = mkDir(storageDir, DIR_CHANGE);
-        
-        fixStoreFileManager = new FixStoreFileManager(storageDirFix, indexer);
-        tempStoreFileManager = new TempStoreFileManager(storageDirTmp, indexer);
-        changeStoreFileManager = new ChangeStoreFileManager(storageDirChange, indexer);
+        for (String s : fixStores) {
+            s = "##" + s;
+            fixStoreFileManagerMap.put(s, new FixStoreFileManager(mkDir(storageDir, s), indexer));
+        }
+        fixStoreFileManagerMap.put(DIR_FIX, new FixStoreFileManager(mkDir(storageDir, DIR_FIX), indexer));
+        tempStoreFileManager = new TempStoreFileManager(mkDir(storageDir, DIR_TMP), indexer);
+        changeStoreFileManager = new ChangeStoreFileManager(mkDir(storageDir, DIR_CHANGE), indexer);
     }
+    //media
+    //video
+    //audio
+    //pictures
+    //books
+    //personal
+    //other - fix
     
     private File mkDir(File parent, String name) {
         File ret = new File(parent, name);
@@ -110,10 +116,15 @@ public class StoreDistribute implements Runnable {
         FIX, TEMP, CHANGE
     }
     
-    private StoreFileManager getStoreFileManager(PersistType pt) {
+    private StoreFileManager getStoreFileManager(PersistType pt, FileInfo fi) {
             switch(pt) {
                 case FIX:
-                    return fixStoreFileManager;
+                    for (String ks : fixStoreFileManagerMap.keySet()) {
+                        if (fi.getTags().contains(ks)) {
+                            return fixStoreFileManagerMap.get(ks);
+                        }
+                    }
+                    return fixStoreFileManagerMap.get(DIR_FIX);
                 case TEMP:
                     return tempStoreFileManager;
                 case CHANGE:
@@ -123,6 +134,7 @@ public class StoreDistribute implements Runnable {
     }
     // /#tag1/#tag2/#tag3/
     private void processFile(File basedir, PersistType pt, File file, HashSet<String> tags, KeepInfo keepInfo) {
+        System.out.println("processFile>"+file.getAbsolutePath());
         if (file.isDirectory() && file.getName().startsWith("#")) {
             for (File f : file.listFiles()) {
                 HashSet<String> t = new HashSet<>(tags);
@@ -141,7 +153,7 @@ public class StoreDistribute implements Runnable {
                 fi.setDateOff(dayOff);
             }
             
-            StoreFileManager.Errors err = getStoreFileManager(pt).addFile(fi);
+            StoreFileManager.Errors err = getStoreFileManager(pt, fi).addFile(fi);
             if (err != null) {
                 File file2dir = mkDir(this.errorDir, err.name());
                 Path file2dirPath = Paths.get(file2dir.getAbsolutePath());
@@ -174,6 +186,7 @@ public class StoreDistribute implements Runnable {
         processKeepTill();
     }
     private void processFix() {
+        System.out.println("processFile>"+fix.getAbsolutePath());
         for (File f : fix.listFiles()) {
             processFile(this.fix, PersistType.FIX, f, new HashSet<String>(), null);
         }

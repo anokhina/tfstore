@@ -17,7 +17,10 @@ package ru.org.sevn.tfstore;
 
 import java.io.File;
 import java.io.IOException;
+import java.time.Duration;
+import java.time.ZonedDateTime;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import ru.org.sevn.common.jmx.AbstractApp;
@@ -33,11 +36,29 @@ public class App extends AbstractApp implements AppMBean {
     private final String solrLocation;
     private final int solrPort;
     
+    public static Duration getDuration(int h, int m, int s) {
+        ZonedDateTime zonedNow = ZonedDateTime.now();//ZonedDateTime.of(LocalDateTime.now(), ZoneId.systemDefault());
+        ZonedDateTime zonedNext5 = zonedNow.withHour(h).withMinute(m).withSecond(s);
+        
+        if(zonedNow.compareTo(zonedNext5) > 0) zonedNext5 = zonedNext5.plusDays(1);
+
+        return Duration.between(zonedNow, zonedNext5);
+    }
+    
     public App(File workDir, Runnable onstop, int solrPort, String solrLocation) {
         this(workDir, onstop, "http://localhost:"+solrPort+"/solr", solrLocation, solrPort, DEFAULT_INITIAL_DELAY, DEFAULT_PERIOD, DEFAULT_UNIT);
     }
     protected App(File workDir, Runnable onstop, String url) {
         this(workDir, onstop, url, null, -1, DEFAULT_INITIAL_DELAY, DEFAULT_PERIOD, DEFAULT_UNIT);
+    }
+    public App(File workDir, Runnable onstop, int solrPort, String sl, int atHour, int atMinute, int atSecond) {
+        this(workDir, onstop, "http://localhost:"+solrPort+"/solr", sl, solrPort, getDuration(atHour, atMinute, atSecond));
+    }
+    public App(File workDir, Runnable onstop, String url, String sl, int solrPort, int atHour, int atMinute, int atSecond) {
+        this(workDir, onstop, url, sl, solrPort, getDuration(atHour, atMinute, atSecond));
+    }
+    public App(File workDir, Runnable onstop, String url, String sl, int solrPort, Duration delay) {
+        this(workDir, onstop, url, sl, solrPort, delay.getSeconds(), 60*60*24, TimeUnit.SECONDS);
     }
     protected App(File workDir, Runnable onstop, String url, String sl, int solrPort, long initialDelay, long period, TimeUnit unit) {
         super(NAME, onstop, initialDelay, period, unit);
@@ -52,10 +73,15 @@ public class App extends AbstractApp implements AppMBean {
         if (solrLocation != null) {
             try {
                 WinExec.runCmd(new File(solrLocation).getAbsolutePath() + " start -p " + solrPort + " -m 256m ");
+                afterStartSolr();
             } catch (IOException | InterruptedException ex) {
                 Logger.getLogger(App.class.getName()).log(Level.SEVERE, null, ex);
             }
         }
+    }
+    
+    protected void afterStartSolr() {
+        forceUpdate();
     }
     
     protected void stopSolr() {
@@ -72,6 +98,8 @@ public class App extends AbstractApp implements AppMBean {
     @Override
     protected void init() {
         startSolr();
+        indexer = new SolrIndexer(solrUrl, SOLR_COLLECTION);
+        storeDistribute = new StoreDistribute(storeDir, indexer, new String[] {"media", "video", "audio", "pictures", "books", "personal"});
     }
     
     @Override
@@ -82,24 +110,39 @@ public class App extends AbstractApp implements AppMBean {
     public static final String SOLR_COLLECTION = "fstore";
     public static final String DEFAULT_IN_DIR = "fsdata";
     private final File storeDir;
+    private SolrIndexer indexer;
+    private StoreDistribute storeDistribute;
     
-    public void run() {
+    public void runTask() {
         System.out.println("create distributer");
         //TODO
-        /*
-        SolrIndexer indexer = new SolrIndexer(solrUrl, SOLR_COLLECTION);
-        StoreDistribute storeDistribute = new StoreDistribute(storeDir, indexer);
-*/
-//        storeDistribute.run();
+        storeDistribute.run();
     }
     
     public static void main(String[] args) {
         
         final JMXLocal svrjmx = new JMXLocal(9999);
-        App m = new App(new File(DEFAULT_IN_DIR), svrjmx.getStopRunnable(), 7777, "D:/Java/solr-6.6.0/bin/solr.cmd");
+        App m = new App(new File(DEFAULT_IN_DIR), svrjmx.getStopRunnable(), 7777, "D:/Java/solr-6.6.0/bin/solr.cmd", 0, 0, 0);
         
         if (!svrjmx.runApp(m)) {
             svrjmx.stopQuiet();
+        }
+    }
+
+    @Override
+    public void cmd(String cmd) {
+        switch(cmd) {
+            case "forceUpdate":
+                forceUpdate();
+                break;
+                //http://localhost:8983/solr/update?stream.body=<delete><query>*:*</query></delete>&commit=true
+            case "deleteAll":
+                indexer.deleteAll();
+                indexer.commitAsync(new Consumer<Throwable>() {
+                        @Override
+                        public void accept(Throwable t) {}
+                });
+                break;
         }
     }
 }
