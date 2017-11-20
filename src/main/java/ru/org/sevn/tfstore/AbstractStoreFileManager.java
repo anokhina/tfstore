@@ -68,7 +68,8 @@ public abstract class AbstractStoreFileManager implements StoreFileManager {
                 if (pi.getBackUpDate() == null) { //NO BACK UP
                     parts.put(pi.getNum(), pi);
                     //restore index queue
-                    for (FileInfo fi : pi.getFileInfoList()) {
+                    System.out.println("restore index queue>>>"+pi.getJSONObject().toString(2));
+                    for (FileInfo fi : pi.getFileInfoList()) { //TODO it's empty
                         index(fi, pi);
                     }
                 }
@@ -161,8 +162,9 @@ public abstract class AbstractStoreFileManager implements StoreFileManager {
                         @Override
                         public void accept(Throwable t) {
                             if (t == null) {
-                                file.setIndexed(true);
-                                storeFileInfo(pi, file);
+                                //TODO
+//                                file.setIndexed(true);
+//                                storeFileInfo(pi, file);
                             }
                         }
                     });

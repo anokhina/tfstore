@@ -17,7 +17,9 @@ package ru.org.sevn.common.solr;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.concurrent.ExecutorService;
@@ -83,6 +85,7 @@ bin\solr stop -p 8983﻿
     public Throwable deleteAll() {
         try {
             solrClient.deleteByQuery("*:*");
+            solrClient.commit();
         } catch (SolrServerException | IOException ex) {
             Logger.getLogger(SolrIndexer.class.getName()).log(Level.SEVERE, null, ex);
             return ex;
@@ -163,7 +166,7 @@ bin\solr stop -p 8983﻿
         
             executorService.submit(() -> {
                 Throwable res = addDoc(wpath, path, fl, title, attributes);
-                if (res != null && result != null) {
+                if (/*res != null &&*/ result != null) {
                     result.accept(res);
                 }
         });
@@ -222,7 +225,7 @@ bin\solr stop -p 8983﻿
             String wpath, String path, String content, String contentType, 
             String title, HashMap<String, Object> attributes) throws IOException {
         
-        if (contentType == null) return null;
+        //if (contentType == null) return null;
         ContentStreamBase cs = new ContentStreamBase.StringStream(content);
         cs.setContentType(contentType);
         return makeUpdateRequest(wpath, path, cs, title, attributes);
@@ -231,8 +234,10 @@ bin\solr stop -p 8983﻿
             String wpath, String path, File fl, String title, 
             HashMap<String, Object> attributes) throws IOException {
         
-        String contentType = Mime.getMimeTypeFile(fl.getName());
-        if (contentType == null) return null;
+        String contentType = Mime.getMimeTypeFile(fl);
+        BasicFileAttributes attr = Files.readAttributes(fl.toPath(), BasicFileAttributes.class);
+        
+        //if (contentType == null) return null; //TODO 
         ContentStreamBase cs = new ContentStreamBase.FileStream(fl);
         cs.setContentType(contentType);
         return makeUpdateRequest(wpath, path, cs, title, attributes);
@@ -245,7 +250,7 @@ bin\solr stop -p 8983﻿
 
         up.addContentStream(cstream);
         
-        String id = wpath + "/" + path;
+        String id = makeId(wpath, path);
         System.out.println(id);
 
         up.setParam(LITERALS_PREFIX + "id", id);
@@ -260,7 +265,7 @@ bin\solr stop -p 8983﻿
         //up.setParam("uprefix", "ignored_");
         up.setParam("uprefix", "attr_");
         up.setParam("fmap.content_type", "content_type_s");
-        up.setParam("fmap.content", "_text_");
+        up.setParam("fmap.content", "_text_");// TODO ? without _s
     
         up.setAction(AbstractUpdateRequest.ACTION.COMMIT, true, true);
         return up;
@@ -274,7 +279,7 @@ bin\solr stop -p 8983﻿
         
         doc.addField(HTML_PATH, path);
         doc.addField(HTML_WPATH, wpath);
-        doc.addField("id", wpath + "/" + path);
+        doc.addField("id", makeId(wpath, path));
         doc.addField(HTML_TITLE, title);
         if (attributes != null) attributes.forEach((k, v) -> { 
             switch(k) {
@@ -288,13 +293,17 @@ bin\solr stop -p 8983﻿
         return doc;
     }
     
+    private static String makeId(String wpath, String path) {
+        return Paths.get(wpath, path).toString();
+    }
+    
     public static SolrInputDocument makeHtml(String wpath, String path, String content, String title, HashMap<String, Object> attributes) {
         //System.out.println("index>>*>"+wpath + ":" + path);
         SolrInputDocument doc = new SolrInputDocument();
         
         doc.addField(HTML_PATH, path);
         doc.addField(HTML_WPATH, wpath);
-        doc.addField("id", wpath + "/" + path);
+        doc.addField("id", makeId(wpath, path));
         doc.addField(HTML_TITLE, title);
         doc.addField("_text_", content);
         if (attributes != null) attributes.forEach((k, v) -> { 

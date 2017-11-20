@@ -138,10 +138,10 @@ public class App extends AbstractApp implements AppMBean {
                 //http://localhost:8983/solr/update?stream.body=<delete><query>*:*</query></delete>&commit=true
             case "deleteAll":
                 indexer.deleteAll();
-                indexer.commitAsync(new Consumer<Throwable>() {
-                        @Override
-                        public void accept(Throwable t) {}
-                });
+//                indexer.commitAsync(new Consumer<Throwable>() {
+//                        @Override
+//                        public void accept(Throwable t) {}
+//                });
                 break;
         }
     }

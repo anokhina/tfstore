@@ -21,6 +21,7 @@ import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
+import org.json.JSONObject;
 
 public class PartInfo {
     
@@ -100,4 +101,12 @@ public class PartInfo {
         ArrayList<FileInfo> ret = new ArrayList<>(files2index);
         return ret;
     }
-}
+    
+    public JSONObject getJSONObject() /*throws Exception*/ {
+        JSONObject ret = new JSONObject();
+        Map<String, Object> props = getProperties();
+        for (String k : props.keySet()) {
+            ret.put(k, props.get(k));
+        }
+        return ret;
+    }}
