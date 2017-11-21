@@ -61,6 +61,10 @@ public abstract class AbstractStoreFileManager implements StoreFileManager {
     public AbstractStoreFileManager(File dir, SolrIndexer indexer) {
         this.indexer = indexer;
         this.dir = dir;
+        restoreIndexing();
+    }
+    
+    public synchronized void restoreIndexing() {
         for (File f : dir.listFiles()) { 
             if (f.isDirectory() && nameP.matcher(f.getName()).matches()) {
                 PartInfo pi = readPartInfo(f);

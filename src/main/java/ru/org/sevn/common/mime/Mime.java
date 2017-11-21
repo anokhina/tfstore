@@ -133,7 +133,6 @@ audio/3gpp2 if it doesn't contain video
 ".mets application/mets+xml\n" +
 ".mods application/mods+xml\n" +
 ".m21 application/mp21\n" +
-".mp4 application/mp4\n" +
 ".doc application/msword\n" +
 ".mxf application/mxf\n" +
 ".bin application/octet-stream\n" +
@@ -143,8 +142,6 @@ audio/3gpp2 if it doesn't contain video
 ".onetoc application/onenote\n" +
 ".xer application/patch-ops-error+xml\n" +
 ".pdf application/pdf\n" +
-".pgp application/pgp-encrypted\n" +
-".pgp application/pgp-signature\n" +
 ".prf application/pics-rules\n" +
 ".p10 application/pkcs10\n" +
 ".p7m application/pkcs7-mime\n" +
@@ -667,8 +664,6 @@ audio/3gpp2 if it doesn't contain video
 ".pjpeg image/pjpeg\n" +
 ".ktx image/ktx\n" +
 ".png image/png\n" +
-".png image/x-png\n" +
-".png image/x-citrix-png\n" +
 ".btif image/prs.btif\n" +
 ".svg image/svg+xml\n" +
 ".tiff image/tiff\n" +
@@ -787,8 +782,13 @@ audio/3gpp2 if it doesn't contain video
         for (String line : str.split("\n")) {
             String aline[] = line.trim().split(" ");
             if (aline.length > 1) {
-                mimeMap.put(aline[0], aline[1]);
+                aline[0] = aline[0].trim();
+                aline[1] = aline[1].trim();
                 System.out.println("mime:" + aline[0] + ":" + aline[1]);
+                if (mimeMap.containsKey(aline[0])) {
+                    throw new RuntimeException("the extension exists:" + aline[0]);
+                }
+                mimeMap.put(aline[0], aline[1]);
             }
         }
     }
@@ -1591,7 +1591,6 @@ https://www.freeformatter.com/mime-types-list.html
 .mets application/mets+xml
 .mods application/mods+xml
 .m21 application/mp21
-.mp4 application/mp4
 .doc application/msword
 .mxf application/mxf
 .bin application/octet-stream
@@ -1601,8 +1600,6 @@ https://www.freeformatter.com/mime-types-list.html
 .onetoc application/onenote
 .xer application/patch-ops-error+xml
 .pdf application/pdf
-.pgp application/pgp-encrypted
-.pgp application/pgp-signature
 .prf application/pics-rules
 .p10 application/pkcs10
 .p7m application/pkcs7-mime
@@ -2125,8 +2122,6 @@ https://www.freeformatter.com/mime-types-list.html
 .pjpeg image/pjpeg
 .ktx image/ktx
 .png image/png
-.png image/x-png
-.png image/x-citrix-png
 .btif image/prs.btif
 .svg image/svg+xml
 .tiff image/tiff

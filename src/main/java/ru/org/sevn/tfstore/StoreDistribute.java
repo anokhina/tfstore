@@ -88,6 +88,14 @@ public class StoreDistribute implements Runnable {
         tempStoreFileManager = new TempStoreFileManager(mkDir(storageDir, DIR_TMP), indexer);
         changeStoreFileManager = new ChangeStoreFileManager(mkDir(storageDir, DIR_CHANGE), indexer);
     }
+    
+    public void restoreIndexing() {
+        changeStoreFileManager.restoreIndexing();
+        tempStoreFileManager.restoreIndexing();
+        for (String k : fixStoreFileManagerMap.keySet()) {
+            fixStoreFileManagerMap.get(k).restoreIndexing();
+        }
+    }
     //media
     //video
     //audio

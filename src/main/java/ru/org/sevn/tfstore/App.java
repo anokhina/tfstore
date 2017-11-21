@@ -143,6 +143,9 @@ public class App extends AbstractApp implements AppMBean {
 //                        public void accept(Throwable t) {}
 //                });
                 break;
+            case "restoreIndexing":
+                storeDistribute.restoreIndexing();
+                break;
         }
     }
 }

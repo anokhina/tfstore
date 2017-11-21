@@ -137,12 +137,16 @@ bin\solr stop -p 8983﻿
                 title = fl.getName();
             }
             if (fl.isDirectory()) {
-                res = addDoc(makeDir(wpath, path, fl.getName(), attributes));
-                if (res != null) {
-                    return res;
+                {
+                    HashMap<String, Object> attributes2index = new HashMap<>(attributes);
+                    addFileAttributes(fl, attributes2index);
+                    res = addDoc(makeDir(wpath, path, fl.getName(), attributes2index));
+                    if (res != null) {
+                        return res;
+                    }
                 }
                 for (File f : fl.listFiles()) {
-                    res = addDoc(wpath, Paths.get(path).resolve(f.getName()).toString(), f, null, attributes);
+                    res = addDoc(wpath, Paths.get(path).resolve(f.getName()).toString(), f, null, new HashMap<>(attributes));
                     if (res != null) {
                         return res;
                     }
@@ -213,6 +217,7 @@ bin\solr stop -p 8983﻿
         return null;
     }
     
+    //see solr\example\example-DIH\solr\db\conf\managed-schema 
     public static final String HTML_PATH = "path_s";
     public static final String HTML_WPATH = "wpath_s";
     public static final String HTML_TITLE = "title_s";
@@ -230,16 +235,28 @@ bin\solr stop -p 8983﻿
         cs.setContentType(contentType);
         return makeUpdateRequest(wpath, path, cs, title, attributes);
     }
+    public static void addFileAttributes(File fl, HashMap<String, Object> attributes) throws IOException {
+        BasicFileAttributes attr = Files.readAttributes(fl.toPath(), BasicFileAttributes.class);
+        attributes.put("file_size_l", attr.size());
+        attributes.put("file_isSymbolicLink_b", attr.isSymbolicLink());
+        attributes.put("file_isRegularFile_b", attr.isRegularFile());
+        attributes.put("file_isOther_b", attr.isOther());
+        attributes.put("file_isDirectory_b", attr.isDirectory());
+        attributes.put("file_creationTime_s", attr.creationTime().toInstant().toString());
+        attributes.put("file_lastAccessTime_s", attr.lastAccessTime().toInstant().toString());
+        attributes.put("file_lastModifiedTime_s", attr.lastModifiedTime().toInstant().toString());
+    }
     public static ContentStreamUpdateRequest makeUpdateRequest(
             String wpath, String path, File fl, String title, 
             HashMap<String, Object> attributes) throws IOException {
         
-        String contentType = Mime.getMimeTypeFile(fl);
-        BasicFileAttributes attr = Files.readAttributes(fl.toPath(), BasicFileAttributes.class);
+        //String contentType = null;
+        //contentType = Mime.getMimeTypeFile(fl);
+        addFileAttributes(fl, attributes);
         
         //if (contentType == null) return null; //TODO 
         ContentStreamBase cs = new ContentStreamBase.FileStream(fl);
-        cs.setContentType(contentType);
+        //cs.setContentType(contentType);
         return makeUpdateRequest(wpath, path, cs, title, attributes);
     }
     public static ContentStreamUpdateRequest makeUpdateRequest(
