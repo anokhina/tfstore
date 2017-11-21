@@ -24,6 +24,8 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -93,39 +95,41 @@ bin\solr stop -p 8983﻿
         return null;
     }
     
+    private final AtomicLong counterNeedCommit = new AtomicLong();
+    private final LinkedBlockingQueue<Consumer<Throwable>> onCommit = new LinkedBlockingQueue();
+    private static final int MAX_COMMIT_CNT = 5;
+
     public void commitAsync(Consumer<Throwable> result) {
-        executorService.submit( () -> {
+        onCommit.add(result);
+        if (counterNeedCommit.get() > MAX_COMMIT_CNT || counterNeedCommit.get() == 0) {
+            commitNow();
+        } else {
+            executorService.submit( () -> {
+                commitNow();
+            });
+        }
+    }
+    
+    private void commitNow() {
+        synchronized(onCommit) {
+            Throwable err = null;
             try {
-                getSolrClient().commit();
+                if (counterNeedCommit.get() > 0) {
+                    System.out.println("ABOUT COMMIT");
+                    getSolrClient().commit();
+                    counterNeedCommit.set(0);
+                }
             } catch (SolrServerException | IOException ex) {
                 Logger.getLogger(SolrIndexer.class.getName()).log(Level.SEVERE, null, ex);
+                err = ex;
+            }
+            Consumer<Throwable> result;
+            while ( (result = onCommit.poll()) != null ) {
                 if (result != null) {
-                    result.accept(ex);
+                    result.accept(err);
                 }
             }
-        });
-    }
-    public void addDocAsync(String wpath, String path, String content, 
-            String contentType, String title, Consumer<Throwable> result) {
-        
-            executorService.submit(() -> {
-                Throwable res;
-                try {
-                    if (title == null) {
-
-                        res = addDoc(makeUpdateRequest(wpath, path, content, contentType, path, null));
-                    } else {
-                        res = addDoc(makeUpdateRequest(wpath, path, content, contentType, title, null));
-                    }
-                } catch (IOException ex) {
-                    Logger.getLogger(SolrIndexer.class.getName()).log(Level.SEVERE, null, ex);
-                    res = ex;
-                }
-
-                if (res != null && result != null) {
-                    result.accept(res);
-                }
-        });
+        }
     }
     
     public Throwable addDoc(String wpath, String path, File fl, String title, 
@@ -168,9 +172,14 @@ bin\solr stop -p 8983﻿
             HashMap<String, Object> attributes,
             Consumer<Throwable> result) {
         
+            System.out.println("SCHEDULE>" + fl.getAbsolutePath());
             executorService.submit(() -> {
+                System.out.println("SCH----->" + fl.getAbsolutePath());
                 Throwable res = addDoc(wpath, path, fl, title, attributes);
-                if (/*res != null &&*/ result != null) {
+                long zzz = counterNeedCommit.incrementAndGet();;
+                System.out.println("SCH----->" + zzz);
+                
+                if (result != null) {
                     result.accept(res);
                 }
         });
@@ -184,17 +193,6 @@ bin\solr stop -p 8983﻿
             res = addDoc(makeHtml(wpath, path, content, title, null));
         }
         return res;
-    }
-    
-    public void addHtmlAsync(String wpath, String path, String content, 
-            String title, Consumer<Throwable> result) {
-        
-        executorService.submit(() -> {
-            Throwable res = addHtml(wpath, path, content, title, result);
-            if (res != null && result != null) {
-                result.accept(res);
-            }
-        });
     }
     
     public Throwable addDoc(ContentStreamUpdateRequest ur) {
@@ -226,15 +224,6 @@ bin\solr stop -p 8983﻿
     
     //https://wiki.apache.org/solr/ExtractingRequestHandler
     //https://wiki.apache.org/solr/ContentStreamUpdateRequestExample
-    public static ContentStreamUpdateRequest makeUpdateRequest(
-            String wpath, String path, String content, String contentType, 
-            String title, HashMap<String, Object> attributes) throws IOException {
-        
-        //if (contentType == null) return null;
-        ContentStreamBase cs = new ContentStreamBase.StringStream(content);
-        cs.setContentType(contentType);
-        return makeUpdateRequest(wpath, path, cs, title, attributes);
-    }
     public static void addFileAttributes(File fl, HashMap<String, Object> attributes) throws IOException {
         BasicFileAttributes attr = Files.readAttributes(fl.toPath(), BasicFileAttributes.class);
         attributes.put("file_size_l", attr.size());
@@ -268,7 +257,7 @@ bin\solr stop -p 8983﻿
         up.addContentStream(cstream);
         
         String id = makeId(wpath, path);
-        System.out.println(id);
+        System.out.println("makeUpdateRequest>"+id);
 
         up.setParam(LITERALS_PREFIX + "id", id);
         up.setParam(LITERALS_PREFIX + HTML_PATH, path);

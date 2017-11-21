@@ -166,6 +166,7 @@ public abstract class AbstractStoreFileManager implements StoreFileManager {
                         @Override
                         public void accept(Throwable t) {
                             if (t == null) {
+                                System.out.println("INDEXED>"+file.getPath());
                                 //TODO
 //                                file.setIndexed(true);
 //                                storeFileInfo(pi, file);
