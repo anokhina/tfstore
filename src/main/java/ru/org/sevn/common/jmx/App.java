@@ -40,7 +40,7 @@ public class App extends AbstractApp {
     }
 
     @Override
-    public void cmd(String cmd) {
+    public void cmd(String[] cmd) {
     }
     
 }

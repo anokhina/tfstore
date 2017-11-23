@@ -89,12 +89,12 @@ public class JMXLocal {
         JMXLocal jmxl = new JMXLocal(port);
         return jmxl.stopAppQuiet(name);
     }
-    public static boolean forceAppQuiet(int port, String name, String cmd) {
+    public static boolean forceAppQuiet(int port, String name, String[] cmd) {
         JMXLocal jmxl = new JMXLocal(port);
         return jmxl.forceAppQuiet(name, cmd);
     }
     
-    public  boolean forceAppQuiet(String name, String cmd) {
+    public  boolean forceAppQuiet(String name, String[] cmd) {
         try {
             return runAppCmd(name, cmd);
         } catch (IOException ex) {
@@ -105,7 +105,7 @@ public class JMXLocal {
         return false;
     }
     
-    public  boolean runAppCmd(String name, String cmd) throws IOException, MalformedURLException, MalformedObjectNameException {
+    public  boolean runAppCmd(String name, String[] cmd) throws IOException, MalformedURLException, MalformedObjectNameException {
         AppMBean mbeanProxy = getProxy(name);
         mbeanProxy.cmd(cmd);
         return true;

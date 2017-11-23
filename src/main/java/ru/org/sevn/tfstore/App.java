@@ -130,18 +130,27 @@ public class App extends AbstractApp implements AppMBean {
     }
 
     @Override
-    public void cmd(String cmd) {
-        switch(cmd) {
-            case "forceUpdate":
-                forceUpdate();
-                break;
-                //http://localhost:8983/solr/update?stream.body=<delete><query>*:*</query></delete>&commit=true
-            case "deleteAll":
-                indexer.deleteAll();
-                break;
-            case "restoreIndexing":
-                storeDistribute.restoreIndexing();
-                break;
+    public void cmd(String[] cmd) {
+        if (cmd.length > 0) {
+            switch(cmd[0]) {
+                case "forceUpdate":
+                    forceUpdate();
+                    break;
+                    //http://localhost:8983/solr/update?stream.body=<delete><query>*:*</query></delete>&commit=true
+                case "deleteAll":
+                    indexer.deleteAll();
+                    break;
+                case "restoreIndexing":
+                    storeDistribute.restoreIndexing();
+                    break;
+                case "query":
+                    try {
+                        indexer.query(cmd[1], 0, 10);
+                    } catch (Exception e) {
+                        Logger.getLogger(App.class.getName()).log(Level.SEVERE, null, e);
+                    }
+                    break;
+            }
         }
     }
 }

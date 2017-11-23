@@ -18,15 +18,10 @@ package ru.org.sevn.tfstore;
 import java.io.IOException;
 import java.util.Date;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.Map;
 import org.noggit.JSONUtil;
 import org.noggit.ObjectBuilder;
 
-/**
- *
- * @author nika
- */
 public class Test {
     public static class ZZZ {
         private String name = "test";
@@ -66,10 +61,10 @@ public class Test {
         }
         
     }
-public static void main(String[] args) throws IOException {
-    ZZZ zzz = new ZZZ();
-    String s = JSONUtil.toJSON(zzz.getProperties(), 2);
-    System.out.println(s);
-    System.out.println("--->" + ObjectBuilder.fromJSON(s).getClass().getName());
-}    
+    public static void main(String[] args) throws IOException {
+        ZZZ zzz = new ZZZ();
+        String s = JSONUtil.toJSON(zzz.getProperties(), 2);
+        System.out.println(s);
+        System.out.println("--->" + ObjectBuilder.fromJSON(s).getClass().getName());
+    }
 }

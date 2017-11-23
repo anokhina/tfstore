@@ -16,12 +16,15 @@
 package ru.org.sevn.tfstore;
 
 import ru.org.sevn.common.jmx.JMXLocal;
+import ru.org.sevn.common.solr.SolrSelect;
 
 public class AppCmd {
 
     public static void main(String[] args) {
         String cmd = "forceUpdate";
-        cmd = "deleteAll";
-        JMXLocal.forceAppQuiet(9999, App.NAME, cmd);
+        cmd = "query";
+        String q = SolrSelect.toQueryNamedParam("id", "*:*");
+        System.out.println("q=" + q);
+        JMXLocal.forceAppQuiet(9999, App.NAME, new String[] { cmd, q });
     }
 }

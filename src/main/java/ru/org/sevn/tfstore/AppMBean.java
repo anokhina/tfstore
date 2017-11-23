@@ -19,6 +19,6 @@ public interface AppMBean {
     String getObjectName();
     void start();
     void stop();
-    void cmd(String cmd);
+    void cmd(String[] cmd);
     boolean isRunning();
 }

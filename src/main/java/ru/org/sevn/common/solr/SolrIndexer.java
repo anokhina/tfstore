@@ -94,6 +94,15 @@ bin\solr stop -p 8983﻿
         }
         return null;
     }
+    public void query(String s, int start, int retMaxSize) {
+        try {
+            SolrSelect.findSolrDocument(new SolrSelect.PrintSolrDocumentProcessor(), solrClient, s, start, retMaxSize);
+        } catch (SolrServerException ex) {
+            Logger.getLogger(SolrIndexer.class.getName()).log(Level.SEVERE, null, ex);
+        } catch (IOException ex) {
+            Logger.getLogger(SolrIndexer.class.getName()).log(Level.SEVERE, null, ex);
+        }
+    }
     
     private final AtomicLong counterNeedCommit = new AtomicLong();
     private final LinkedBlockingQueue<Consumer<Throwable>> onCommit = new LinkedBlockingQueue();
