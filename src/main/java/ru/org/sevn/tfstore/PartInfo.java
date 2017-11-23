@@ -28,8 +28,14 @@ public class PartInfo {
     private Date backUpDate;
     private long size;
     private int num;
-    private ArrayList<FileInfo> files2index = new ArrayList<>();
+    private ArrayList<FileInfo> files2index = new ArrayList<>(); //TODO use set
 
+    private final java.io.File root;
+    
+    public PartInfo(java.io.File root) {
+        this.root = root;
+    }
+    
     public Map getProperties() {
         LinkedHashMap ret = new LinkedHashMap();
         if (backUpDate != null) {
@@ -42,8 +48,8 @@ public class PartInfo {
         return ret;
     }
 
-    public static PartInfo fromMap(Map m) {
-        PartInfo pi = new PartInfo();
+    public static PartInfo fromMap(Map m, java.io.File root) {
+        PartInfo pi = new PartInfo(root);
         if (m.containsKey("size")) {
             pi.size = Long.parseLong(m.get("size").toString());
         }
@@ -55,7 +61,7 @@ public class PartInfo {
         }
         if (m.containsKey("files2index")) {
             for(Object e : ((Collection)m.get("files2index"))) {
-                pi.files2index.add(FileInfo.fromMap((Map)e));
+                pi.files2index.add(FileInfo.fromMap((Map)e, root.toPath()));
             }
         }
         return pi;
@@ -91,9 +97,11 @@ public class PartInfo {
     
     public void addFileInfo(FileInfo s) {
         files2index.add(s);
+        s.setRoot(root.toPath());
     }
     
     public void removeFileInfo(FileInfo s) {
+        s.setRoot(null);
         files2index.remove(s);
     }
     

@@ -38,6 +38,21 @@ public class FileInfo {
     private Collection<String> tags = new HashSet<String>();
     private UUID uuid = UUID.randomUUID();
 
+    public FileInfo() {
+        
+    } 
+    
+    public boolean equals(Object obj) {
+        boolean ret = super.equals(obj);
+        if (!ret && obj instanceof FileInfo) {
+            FileInfo fi = (FileInfo)obj;
+            if (fi.uuid != null) {
+                ret = uuid.equals(fi.uuid);
+            }
+        }
+        return ret;
+    }
+    
     public Path getPath() {
         return path;
     }
@@ -46,21 +61,23 @@ public class FileInfo {
         return path.getFileName().toString();
     }
     
-    public static FileInfo fromMap(Map m) {
-        return fromMap(m, new FileInfo());
+    public static FileInfo fromMap(Map m, Path root) {
+        return fromMap(m, new FileInfo(), root);
     }
-    public static FileInfo fromMap(Map m, FileInfo fi) {
+    public static FileInfo fromMap(Map m, FileInfo fi, Path root) {
+        //TODO read relative make absolute
         String path = (String)m.get("path");
-        String root = (String)m.get("root");
         Long dateOff = (Long)m.get("dateOff");
         String uuid = (String)m.get("uuid");
         Boolean indexed = (Boolean)m.get("indexed");
         Collection tags = (Collection)m.get("tags");
         if (path != null) {
             fi.path = Paths.get(path);
-        }
-        if (root != null) {
-            fi.root = Paths.get(root);
+            if (!fi.path.isAbsolute()) {
+                if (root != null) {
+                    fi.path = root.resolve(fi.path);
+                }
+            }
         }
         if (dateOff != null) {
             fi.dateOff = new Date(dateOff);
@@ -74,15 +91,17 @@ public class FileInfo {
         if (indexed != null) {
             fi.indexed = indexed;
         }
+        fi.setRoot(root);
         return fi;
     }
     public Map<String, Object> getProperties() {
         Map ret = new LinkedHashMap();
         if (path != null) {
-            ret.put("path", path.toString());
-        }
-        if (root != null) {
-            ret.put("root", path.toString());
+            if (root != null && path.isAbsolute()) {
+                ret.put("path", root.toAbsolutePath().relativize(path).toString());
+            } else {
+                ret.put("path", path.toString());
+            }
         }
         if (dateOff != null) {
             ret.put("dateOff", dateOff.getTime());
@@ -97,15 +116,13 @@ public class FileInfo {
         return ret;
     }
 
-    public FileInfo setPath(Path path, Path root) {
+    public FileInfo setPath(Path path) {
         this.path = path;
-        this.root = root;
         return this;
     }
 
     public FileInfo setFile(File file) {
-        path = Paths.get(file.getAbsolutePath());
-        return this;
+        return setPath(Paths.get(file.getAbsolutePath()));
     }
 
     public Date getDateOff() {
@@ -158,6 +175,7 @@ public class FileInfo {
                 return Files.size(path);
             }
         } catch (IOException e) {
+            e.printStackTrace();
         }
         return 0L;
     }
@@ -174,6 +192,10 @@ public class FileInfo {
         for (String k : jo.keySet()) {
             ret.put(k, jo.get(k));
         }
-        fromMap(ret, this);
+        fromMap(ret, this, this.root);
+    }
+
+    public void setRoot(Path root) {
+        this.root = root;
     }
 }

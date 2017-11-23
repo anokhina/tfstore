@@ -19,6 +19,9 @@ public interface StoreFileManager {
 
     public static long MAX_SIZE = 25025314816L - 1L;
 
+    //120M
+    public static long MAX_SIZE1 = 120*1024*1024L;
+    
     enum Errors {
         TOO_BIG
     }
@@ -26,7 +29,7 @@ public interface StoreFileManager {
     Errors addFileIn(FileInfo file);
     
     public default Errors addFile(FileInfo fi) {
-        if (fi.getFileSize() >= MAX_SIZE) {
+        if (fi.getFileSize() >= MAX_SIZE1) {
             return Errors.TOO_BIG;
         }
         return addFileIn(fi);

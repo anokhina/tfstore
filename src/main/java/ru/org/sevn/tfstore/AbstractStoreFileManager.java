@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -40,7 +41,7 @@ public abstract class AbstractStoreFileManager implements StoreFileManager {
     // dir/dir1/
     // dir/dir1.info
     private final File dir;
-    private int lastnum = 0;
+    private AtomicInteger lastnum = new AtomicInteger(0);
     private HashMap<Integer, PartInfo> parts = new HashMap();
     private SolrIndexer indexer;
 
@@ -68,7 +69,7 @@ public abstract class AbstractStoreFileManager implements StoreFileManager {
         for (File f : dir.listFiles()) { 
             if (f.isDirectory() && nameP.matcher(f.getName()).matches()) {
                 PartInfo pi = readPartInfo(f);
-                lastnum = Math.max(lastnum, pi.getNum());
+                lastnum.set(Math.max(lastnum.get(), pi.getNum()));
                 if (pi.getBackUpDate() == null) { //NO BACK UP
                     parts.put(pi.getNum(), pi);
                     //restore index queue
@@ -83,21 +84,22 @@ public abstract class AbstractStoreFileManager implements StoreFileManager {
     
     protected synchronized PartInfo selectPartInfoFor(FileInfo fi) {
         for(PartInfo pi : parts.values()) {
-            if (pi.getSize() + fi.getFileSize() < MAX_SIZE) {
+            if (pi.getSize() + fi.getFileSize() < MAX_SIZE1) {
                 return pi;
             }
         }
-        PartInfo npi = new PartInfo();
-        npi.setNum(this.lastnum + 1);
-        this.lastnum = npi.getNum();
-        parts.put(npi.getNum(), npi);
-        File npiFile = getPartDataDir(npi.getNum());
+        int lnum = this.lastnum.incrementAndGet();
+        File npiFile = getPartDataDir(lnum);
         npiFile.mkdirs();
+        
+        PartInfo npi = new PartInfo(npiFile);
+        npi.setNum(lnum);
+        parts.put(npi.getNum(), npi);
         return npi;
     }
     
     protected PartInfo readPartInfo(File dir) {
-        PartInfo ret = new PartInfo();
+        PartInfo ret = new PartInfo(dir);
         
         try {
             File f = new File(dir.getParent(), dir.getName() + PART_INFO);
@@ -105,10 +107,10 @@ public abstract class AbstractStoreFileManager implements StoreFileManager {
             Path fpath = Paths.get(f.getAbsolutePath());
             if (f.exists()) {
                 String fstr = new String(Files.readAllBytes(fpath), "UTF-8");
-                ret = PartInfo.fromMap((Map)ObjectBuilder.fromJSON(fstr));
+                ret = PartInfo.fromMap((Map)ObjectBuilder.fromJSON(fstr), dir);
             }
             ret.setNum(num);
-            ret.setSize(FileInfo.calculatePathSize(fpath));
+            ret.setSize(FileInfo.calculatePathSize(dir.toPath()));
         } catch (Exception ex) {
             Logger.getLogger(AbstractStoreFileManager.class.getName()).log(Level.SEVERE, null, ex);
             return null;
@@ -136,7 +138,7 @@ public abstract class AbstractStoreFileManager implements StoreFileManager {
         File toFileFile = toFile.toFile();
         toFileFile.getParentFile().mkdirs();
         if (file.getPath().toFile().renameTo(toFileFile)) {
-            file.setPath(toFile, toDirPath);
+            file.setFile(toFileFile);
             storeFileInfo(pi, file);
             //(String wpath, String path, File fl, String title, Consumer<Throwable> result) {
 
@@ -167,9 +169,9 @@ public abstract class AbstractStoreFileManager implements StoreFileManager {
                         public void accept(Throwable t) {
                             if (t == null) {
                                 System.out.println("INDEXED>"+file.getPath());
-                                //TODO
-//                                file.setIndexed(true);
-//                                storeFileInfo(pi, file);
+                                file.setIndexed(true);
+                                //TODO store in db
+                                storeFileInfo(pi, file);
                             }
                         }
                     });
@@ -222,11 +224,7 @@ public abstract class AbstractStoreFileManager implements StoreFileManager {
     }
 
     public int getLastnum() {
-        return lastnum;
-    }
-
-    protected void setLastnum(int lastnum) {
-        this.lastnum = lastnum;
+        return lastnum.get();
     }
 
     public HashMap<Integer, PartInfo> getParts() {

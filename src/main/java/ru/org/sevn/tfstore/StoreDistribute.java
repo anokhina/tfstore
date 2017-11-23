@@ -171,6 +171,7 @@ public class StoreDistribute implements Runnable {
                 Path filePathRel = fileBasePath.relativize(filePath);
                 
                 File file2 = file2dirPath.resolve(filePathRel).toFile();
+                file2.getParentFile().mkdirs();
                 file.renameTo(file2);
             }
         }
