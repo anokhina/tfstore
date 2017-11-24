@@ -150,6 +150,14 @@ public class App extends AbstractApp implements AppMBean {
                         Logger.getLogger(App.class.getName()).log(Level.SEVERE, null, e);
                     }
                     break;
+                case "backup":
+                    try {
+                        boolean ret = storeDistribute.backUp(cmd[1], cmd[2]);
+                        System.out.println("Set backup for " + cmd[1] + " : " + cmd[2] + " : " + ret);
+                    } catch (Exception e) {
+                        Logger.getLogger(App.class.getName()).log(Level.SEVERE, null, e);
+                    }
+                    break;
             }
         }
     }

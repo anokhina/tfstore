@@ -308,4 +308,12 @@ public class StoreDistribute implements Runnable {
             this.basedir = basedir;
         }
     }
+    
+    public synchronized boolean backUp(String div, String part) throws Exception {
+        FixStoreFileManager mgr = fixStoreFileManagerMap.get(div);
+        if (mgr != null) {
+            return mgr.backUp(new File(mgr.getDir(), part));
+        }
+        return false;
+    }
 }

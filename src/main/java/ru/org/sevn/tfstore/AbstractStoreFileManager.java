@@ -73,7 +73,7 @@ public abstract class AbstractStoreFileManager implements StoreFileManager {
                 if (pi.getBackUpDate() == null) { //NO BACK UP
                     parts.put(pi.getNum(), pi);
                     //restore index queue
-                    System.out.println("restore index queue>>>"+pi.getJSONObject().toString(2));
+                    System.out.println("restore index queue>>>"+lastnum.get() + ":" + dir.getAbsolutePath()+":"+pi.getJSONObject().toString(2));
                     for (FileInfo fi : pi.getFileInfoList()) { //TODO it's empty
                         index(fi, pi);
                     }
@@ -189,15 +189,18 @@ public abstract class AbstractStoreFileManager implements StoreFileManager {
         return dirPath.relativize(filePath).toString();
     }
     
-    public synchronized void backUp(File partFile) throws Exception {
+    public synchronized boolean backUp(File partFile) throws Exception {
         if (nameP.matcher(partFile.getName()).matches()) {
             int num = Integer.parseInt(partFile.getName().substring(1));
             PartInfo pi = parts.remove(num);
             if (pi != null) {
                 pi.setBackUpDate(new Date());
                 writePartInfo(pi);
+                System.out.println("back up>" + partFile.getAbsolutePath());
+                return true;
             }
         }
+        return false;
     }
     
     // TODO move to util

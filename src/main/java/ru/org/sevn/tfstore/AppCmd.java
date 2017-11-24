@@ -25,6 +25,7 @@ public class AppCmd {
         cmd = "query";
         String q = SolrSelect.toQueryNamedParam("id", "*:*");
         System.out.println("q=" + q);
-        JMXLocal.forceAppQuiet(9999, App.NAME, new String[] { cmd, q });
+        //JMXLocal.forceAppQuiet(9999, App.NAME, new String[] { cmd, q });
+        JMXLocal.forceAppQuiet(9999, App.NAME, new String[] { "backup", "##video", "p1" });
     }
 }
