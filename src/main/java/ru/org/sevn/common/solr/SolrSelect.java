@@ -16,6 +16,7 @@
 package ru.org.sevn.common.solr;
 
 import java.io.IOException;
+import java.util.Collection;
 import org.apache.solr.client.solrj.SolrClient;
 import org.apache.solr.client.solrj.SolrQuery;
 import org.apache.solr.client.solrj.SolrServerException;
@@ -65,8 +66,29 @@ public class SolrSelect {
         
     }
     
-    public static void findSolrDocument(SolrDocumentProcessor proc, SolrClient solrClient, String q, int start, int retMaxSize) throws SolrServerException, IOException {
+    public static class CollectorSolrDocumentProcessor implements SolrDocumentProcessor {
+        
+        private final Collection collection;
+        
+        public CollectorSolrDocumentProcessor(Collection<SolrDocument> c) {
+            this.collection = c;
+        }
+
+        @Override
+        public void process(SolrDocument d, int size, int i) {
+            collection.add(d);
+        }
+
+        public Collection getCollection() {
+            return collection;
+        }
+    }
+    
+    public static void findSolrDocument(SolrDocumentProcessor proc, SolrClient solrClient, String q, String[] fields, int start, int retMaxSize) throws SolrServerException, IOException {
         SolrQuery query = new SolrQuery(q).setStart(start).setRows(retMaxSize);
+        if (fields != null) {
+            query.setFields(fields);
+        }
         //query.setQuery(version.getSong_name());
         //query.addFilterQuery("cat:electronics","store:amazon.com");
         //query.setFields("id","price","merchant","cat","store");

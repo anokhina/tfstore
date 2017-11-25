@@ -23,7 +23,7 @@ public interface StoreFileManager {
     public static long MAX_SIZE1 = 120*1024*1024L;
     
     enum Errors {
-        TOO_BIG, EXISTS
+        TOO_BIG, EXISTS, SOLR, FATAL
     }
     
     Errors addFileIn(FileInfo file);

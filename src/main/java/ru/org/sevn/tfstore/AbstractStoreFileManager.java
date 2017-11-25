@@ -16,9 +16,11 @@
 package ru.org.sevn.tfstore;
 
 import java.io.File;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
@@ -28,9 +30,12 @@ import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.regex.Pattern;
+import org.apache.solr.client.solrj.SolrServerException;
+import org.apache.solr.common.SolrDocument;
 import org.noggit.JSONUtil;
 import org.noggit.ObjectBuilder;
 import ru.org.sevn.common.solr.SolrIndexer;
+import ru.org.sevn.common.solr.SolrSelect;
 
 public abstract class AbstractStoreFileManager implements StoreFileManager {
 
@@ -41,6 +46,7 @@ public abstract class AbstractStoreFileManager implements StoreFileManager {
     // dir/dir1/
     // dir/dir1.info
     private final File dir;
+    private final File tempdir;
     private AtomicInteger lastnum = new AtomicInteger(0);
     private HashMap<Integer, PartInfo> parts = new HashMap();
     private SolrIndexer indexer;
@@ -62,6 +68,8 @@ public abstract class AbstractStoreFileManager implements StoreFileManager {
     public AbstractStoreFileManager(File dir, SolrIndexer indexer) {
         this.indexer = indexer;
         this.dir = dir;
+        this.tempdir = new File(dir.getParentFile(), dir.getName() + "_temp");
+        this.tempdir.mkdirs();
         restoreIndexing();
     }
     
@@ -128,11 +136,117 @@ public abstract class AbstractStoreFileManager implements StoreFileManager {
         return fileRelPath;
     }
     
+    public static final String TAG_OVERRIDE = "#override";
     @Override
     public Errors addFileIn(FileInfo file) {
+        String q = "" + SolrSelect.toQueryNamedParamEscape(SolrIndexer.DOC_WPATH, this.getStoreIdName()) + " AND " + SolrSelect.toQueryNamedParamEscape(SolrIndexer.DOC_FULL_TITLE,file.getName());
+        ArrayList<SolrDocument> files = new ArrayList<>();
+        try {
+            SolrSelect.findSolrDocument(new SolrSelect.CollectorSolrDocumentProcessor(files), indexer.getSolrClient(), q, 
+                    new String[] { "id", SolrIndexer.DOC_TITLE, SolrIndexer.DOC_FULL_TITLE, SolrIndexer.DOC_WPATH,  SolrIndexer.DOC_PART, SolrIndexer.DOC_UUID, SolrIndexer.DOC_PATH, SolrIndexer.DOC_TAGS, SolrIndexer.FILE_LASTMODIFIEDTIME}, 0, 1000);
+        } catch (SolrServerException | IOException ex) {
+            Logger.getLogger(AbstractStoreFileManager.class.getName()).log(Level.SEVERE, null, ex);
+            return Errors.SOLR;
+        }
+        boolean fileExists = !files.isEmpty();
+        
+        boolean fileBackUp = false;
+        ArrayList<SolrDocument> filesNotBackUp = new ArrayList<>();
+        if (fileExists) {
+            for (SolrDocument sd : files) {
+                if (sd.containsKey(PART_NAME)) {
+                    String partName = sd.getFieldValue(PART_NAME).toString();
+                    int num = Integer.parseInt(partName.substring(1));
+                    if (parts.containsKey(num)) {
+                        filesNotBackUp.add(sd);
+                    }
+                }
+            }
+            fileBackUp = filesNotBackUp.isEmpty();
+        }
+        
+        if (fileExists) {
+            if (file.getPath().toFile().isDirectory()) {
+                if (file.getTags().contains(TAG_OVERRIDE)) {
+                    file.getTags().remove(TAG_OVERRIDE);
+                    if (!fileBackUp) { 
+                        //take that is not back up
+                        //move content to in dir
+                        Path tempDir;
+                        try {
+                            tempDir = Files.createTempDirectory(this.tempdir.toPath(), "tmp");
+                        } catch (IOException ex) {
+                            Logger.getLogger(AbstractStoreFileManager.class.getName()).log(Level.SEVERE, null, ex);
+                            return Errors.FATAL;
+                        }
+                        File f1 = Paths.get(filesNotBackUp.get(0).get(SolrIndexer.DOC_PATH).toString()).toFile();
+                        File f2 = tempDir.resolve(file.getName()).toFile();
+                        f1.renameTo(f2);
+                        // get old tags
+                        file.getTags().addAll( filesNotBackUp.get(0).getFieldValues(SolrIndexer.DOC_TAGS).stream().map(e -> { return e.toString(); }).collect(java.util.stream.Collectors.toList()) );
+                        //delete index
+                        //delete related indexes
+                        try {
+                            // remove old index
+                            indexer.getSolrClient().deleteByQuery(SolrSelect.toQueryNamedParamEscape("id", filesNotBackUp.get(0).get("id").toString()));
+                            indexer.getSolrClient().deleteByQuery(
+                                    SolrSelect.toQueryNamedParamEscape(SolrIndexer.DOC_WPATH, filesNotBackUp.get(0).get(SolrIndexer.DOC_WPATH).toString()) + " AND " +
+                                    SolrSelect.toQueryNamedParamEscape(SolrIndexer.DOC_PART, filesNotBackUp.get(0).get(SolrIndexer.DOC_PART).toString()) + " AND " +
+                                    SolrSelect.toQueryNamedParam(SolrIndexer.DOC_PATH, SolrSelect.toQueryParam(filesNotBackUp.get(0).get(SolrIndexer.DOC_PATH).toString())+"*" )
+                            );
+                            indexer.getSolrClient().commit();
+                        } catch (SolrServerException | IOException ex) {
+                            Logger.getLogger(AbstractStoreFileManager.class.getName()).log(Level.SEVERE, null, ex);
+                            return Errors.FATAL;
+                        }
+                        
+                        //override content
+                        try {
+                            Files.move(file.getPath(), f2.toPath(), StandardCopyOption.REPLACE_EXISTING);
+                            Files.move(f2.toPath(), file.getPath(), StandardCopyOption.REPLACE_EXISTING);
+                        } catch (IOException ex) {
+                            Logger.getLogger(AbstractStoreFileManager.class.getName()).log(Level.SEVERE, null, ex);
+                            return Errors.FATAL;
+                        }
+                    }
+                    return addFileInNew(file);
+                } else {
+                    return Errors.EXISTS;
+                }
+            } else {
+                if (file.getTags().contains(TAG_OVERRIDE)) {
+                    file.getTags().remove(TAG_OVERRIDE);
+                    if (!fileBackUp) { //take that is not back up
+                        // remove old file
+                        boolean isDel = new File(dir, filesNotBackUp.get(0).get(SolrIndexer.DOC_PATH).toString()).delete();
+                        if (!isDel) {
+                            return Errors.FATAL;
+                        }
+                        // get old tags
+                        file.getTags().addAll( filesNotBackUp.get(0).getFieldValues(SolrIndexer.DOC_TAGS).stream().map(e -> { return e.toString(); }).collect(java.util.stream.Collectors.toList()) );
+                        try {
+                            // remove old index
+                            indexer.getSolrClient().deleteByQuery(SolrSelect.toQueryNamedParamEscape("id", filesNotBackUp.get(0).get("id").toString()));
+                            indexer.getSolrClient().commit();
+                        } catch (SolrServerException | IOException ex) {
+                            Logger.getLogger(AbstractStoreFileManager.class.getName()).log(Level.SEVERE, null, ex);
+                            return Errors.FATAL;
+                        }
+                    }
+                    return addFileInNew(file);
+                } else {
+                    return Errors.EXISTS;
+                }
+            }
+        } else {
+            return addFileInNew(file);
+        }
+        //return Errors.EXISTS;
+    }
+    private Errors addFileInNew(FileInfo file) {
         PartInfo pi = selectPartInfoFor(file);
         pi.incrSize(file.getFileSize());
-        
+
         Path toDirPath = Paths.get(getPartDataDir(pi.getNum()).getAbsolutePath());
         Path toFile = toDirPath.resolve(makeRelativePath(file));
         File toFileFile = toFile.toFile();
@@ -151,9 +265,11 @@ public abstract class AbstractStoreFileManager implements StoreFileManager {
     
     private void index(FileInfo file, PartInfo pi) {
         HashMap<String, Object> tags = new HashMap();
-        tags.put("tags_ss", new ArrayList<String>(file.getTags()));
+        tags.put(SolrIndexer.DOC_TAGS, new ArrayList<String>(file.getTags()));
         indexer.addDocAsync(
                 getStoreIdName(), 
+                "p" + pi.getNum(),
+                getPathFromUUID(file.getUuid().toString()).toString(), 
                 getRelative(dir, file.getPath().toFile()), 
                 file.getPath().toFile(), 
                 file.getName(), 

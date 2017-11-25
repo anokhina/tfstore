@@ -41,7 +41,6 @@ import org.apache.solr.common.SolrDocumentList;
 import org.apache.solr.common.SolrInputDocument;
 import org.apache.solr.common.util.ContentStream;
 import org.apache.solr.common.util.ContentStreamBase;
-import ru.org.sevn.common.mime.Mime;
 
 public class SolrIndexer {
     /*
@@ -96,7 +95,7 @@ bin\solr stop -p 8983﻿
     }
     public void query(String s, int start, int retMaxSize) {
         try {
-            SolrSelect.findSolrDocument(new SolrSelect.PrintSolrDocumentProcessor(), solrClient, s, start, retMaxSize);
+            SolrSelect.findSolrDocument(new SolrSelect.PrintSolrDocumentProcessor(), solrClient, s, null, start, retMaxSize);
         } catch (SolrServerException ex) {
             Logger.getLogger(SolrIndexer.class.getName()).log(Level.SEVERE, null, ex);
         } catch (IOException ex) {
@@ -141,11 +140,12 @@ bin\solr stop -p 8983﻿
         }
     }
     
-    public Throwable addDoc(String wpath, String path, File fl, String title, 
+    public Throwable addDoc(String wpath, String ch, String uuidpath, String path, File fl, String title, 
             HashMap<String, Object> attributes) {
         
         Throwable res = null;
         try {
+            String fullTitle = Paths.get(ch, uuidpath).relativize(Paths.get(path)).toString();
             if (title == null) {
                 title = fl.getName();
             }
@@ -153,19 +153,19 @@ bin\solr stop -p 8983﻿
                 {
                     HashMap<String, Object> attributes2index = new HashMap<>(attributes);
                     addFileAttributes(fl, attributes2index);
-                    res = addDoc(makeDir(wpath, path, fl.getName(), attributes2index));
+                    res = addDoc(makeDir(wpath, ch, uuidpath, path, fl.getName(), fullTitle, attributes2index));
                     if (res != null) {
                         return res;
                     }
                 }
                 for (File f : fl.listFiles()) {
-                    res = addDoc(wpath, Paths.get(path).resolve(f.getName()).toString(), f, null, new HashMap<>(attributes));
+                    res = addDoc(wpath, ch, uuidpath, Paths.get(path).resolve(f.getName()).toString(), f, null, new HashMap<>(attributes));
                     if (res != null) {
                         return res;
                     }
                 }
             } else {
-                ContentStreamUpdateRequest req = makeUpdateRequest(wpath, path, fl, title, attributes);
+                ContentStreamUpdateRequest req = makeUpdateRequest(wpath, ch, uuidpath, path, fl, title, fullTitle, attributes);
                 if (req != null) {
                     res = addDoc(req);
                 }
@@ -177,14 +177,14 @@ bin\solr stop -p 8983﻿
         return res;
     }
     
-    public void addDocAsync(String wpath, String path, File fl, String title,
+    public void addDocAsync(String wpath, String ch, String uuidpath, String path, File fl, String title,
             HashMap<String, Object> attributes,
             Consumer<Throwable> result) {
         
             System.out.println("SCHEDULE>" + fl.getAbsolutePath());
             executorService.submit(() -> {
                 System.out.println("SCH----->" + fl.getAbsolutePath());
-                Throwable res = addDoc(wpath, path, fl, title, attributes);
+                Throwable res = addDoc(wpath, ch, uuidpath, path, fl, title, attributes);
                 long zzz = counterNeedCommit.incrementAndGet();;
                 System.out.println("SCH----->" + zzz);
                 
@@ -192,16 +192,6 @@ bin\solr stop -p 8983﻿
                     result.accept(res);
                 }
         });
-    }
-    
-    public Throwable addHtml(String wpath, String path, String content, String title, Consumer<Throwable> result) {
-        Throwable res;
-        if (title == null) {
-            res = addDoc(makeHtml(wpath, path, content, path, null));
-        } else {
-            res = addDoc(makeHtml(wpath, path, content, title, null));
-        }
-        return res;
     }
     
     public Throwable addDoc(ContentStreamUpdateRequest ur) {
@@ -225,9 +215,14 @@ bin\solr stop -p 8983﻿
     }
     
     //see solr\example\example-DIH\solr\db\conf\managed-schema 
-    public static final String HTML_PATH = "path_s";
-    public static final String HTML_WPATH = "wpath_s";
-    public static final String HTML_TITLE = "title_s";
+    public static final String DOC_PATH = "path_s";
+    public static final String DOC_WPATH = "wpath_s";
+    public static final String DOC_UUID = "uuid_s";
+    public static final String DOC_PART = "part_s";
+    public static final String DOC_TITLE = "title_s";
+    public static final String DOC_FULL_TITLE = "full_title_s";
+    public static final String DOC_TAGS = "tags_ss";
+    public static final String FILE_LASTMODIFIEDTIME = "file_lastModifiedTime_s";
     
     public static final String LITERALS_PREFIX = "literal.";
     
@@ -242,23 +237,19 @@ bin\solr stop -p 8983﻿
         attributes.put("file_isDirectory_b", attr.isDirectory());
         attributes.put("file_creationTime_s", attr.creationTime().toInstant().toString());
         attributes.put("file_lastAccessTime_s", attr.lastAccessTime().toInstant().toString());
-        attributes.put("file_lastModifiedTime_s", attr.lastModifiedTime().toInstant().toString());
+        attributes.put(FILE_LASTMODIFIEDTIME, attr.lastModifiedTime().toInstant().toString());
     }
     public static ContentStreamUpdateRequest makeUpdateRequest(
-            String wpath, String path, File fl, String title, 
+            String wpath, String ch, String uuidpath, String path, File fl, String title, String fullTitle,
             HashMap<String, Object> attributes) throws IOException {
         
-        //String contentType = null;
-        //contentType = Mime.getMimeTypeFile(fl);
         addFileAttributes(fl, attributes);
         
-        //if (contentType == null) return null; //TODO 
         ContentStreamBase cs = new ContentStreamBase.FileStream(fl);
-        //cs.setContentType(contentType);
-        return makeUpdateRequest(wpath, path, cs, title, attributes);
+        return makeUpdateRequest(wpath, ch, uuidpath, path, cs, title, fullTitle, attributes);
     }
     public static ContentStreamUpdateRequest makeUpdateRequest(
-            String wpath, String path, ContentStream cstream, String title, 
+            String wpath, String ch, String uuidpath, String path, ContentStream cstream, String title, String fullTitle,
             HashMap<String, Object> attributes) throws IOException {
         
         ContentStreamUpdateRequest up = new ContentStreamUpdateRequest("/update/extract");
@@ -269,9 +260,12 @@ bin\solr stop -p 8983﻿
         System.out.println("makeUpdateRequest>"+id);
 
         up.setParam(LITERALS_PREFIX + "id", id);
-        up.setParam(LITERALS_PREFIX + HTML_PATH, path);
-        up.setParam(LITERALS_PREFIX + HTML_WPATH, wpath);
-        up.setParam(LITERALS_PREFIX + HTML_TITLE, title);
+        up.setParam(LITERALS_PREFIX + DOC_PATH, path);
+        up.setParam(LITERALS_PREFIX + DOC_WPATH, wpath);
+        up.setParam(LITERALS_PREFIX + DOC_PART, ch);
+        up.setParam(LITERALS_PREFIX + DOC_UUID, uuidpath);
+        up.setParam(LITERALS_PREFIX + DOC_TITLE, title);
+        up.setParam(LITERALS_PREFIX + DOC_FULL_TITLE, fullTitle);
         
         for (String k : attributes.keySet()) {
             up.setParam(LITERALS_PREFIX + k, attributes.get(k).toString());
@@ -286,20 +280,24 @@ bin\solr stop -p 8983﻿
         return up;
     }
 
-    public static SolrInputDocument makeDir(String wpath, String path, 
-            String title, HashMap<String, Object> attributes) {
+    //TODO
+    public static SolrInputDocument makeDir(String wpath, String ch, String uuidpath, String path, 
+            String title, String fullTitle, HashMap<String, Object> attributes) {
         
         //System.out.println("index>>*>"+wpath + ":" + path);
         SolrInputDocument doc = new SolrInputDocument();
         
-        doc.addField(HTML_PATH, path);
-        doc.addField(HTML_WPATH, wpath);
+        doc.addField(DOC_PATH, path);
+        doc.addField(DOC_WPATH, wpath);
+        doc.addField(DOC_PART, ch);
+        doc.addField(DOC_UUID, uuidpath);
         doc.addField("id", makeId(wpath, path));
-        doc.addField(HTML_TITLE, title);
+        doc.addField(DOC_TITLE, title);
+        doc.addField(DOC_FULL_TITLE, fullTitle);
         if (attributes != null) attributes.forEach((k, v) -> { 
             switch(k) {
-                case HTML_PATH:
-                case HTML_WPATH:
+                case DOC_PATH:
+                case DOC_WPATH:
                 case "_text_":
                     break;
                     default: doc.addField(k, v);
@@ -312,27 +310,6 @@ bin\solr stop -p 8983﻿
         return Paths.get(wpath, path).toString();
     }
     
-    public static SolrInputDocument makeHtml(String wpath, String path, String content, String title, HashMap<String, Object> attributes) {
-        //System.out.println("index>>*>"+wpath + ":" + path);
-        SolrInputDocument doc = new SolrInputDocument();
-        
-        doc.addField(HTML_PATH, path);
-        doc.addField(HTML_WPATH, wpath);
-        doc.addField("id", makeId(wpath, path));
-        doc.addField(HTML_TITLE, title);
-        doc.addField("_text_", content);
-        if (attributes != null) attributes.forEach((k, v) -> { 
-            switch(k) {
-                case HTML_PATH:
-                case HTML_WPATH:
-                case "_text_":
-                    break;
-                    default: doc.addField(k, v);
-            }
-        });
-        return doc;
-    }
-    
     public void addDocumentsCommit(Collection<SolrInputDocument> docs) throws SolrServerException, IOException {
         if (docs.size() > 0) {
             solrClient.add(docs);
@@ -341,10 +318,11 @@ bin\solr stop -p 8983﻿
     }
     
     public SolrDocumentList findHtml(String wpath, String str, int rows) throws SolrServerException, IOException {
+        //TODO change it
         SolrQuery query = new SolrQuery();
-        query.setFields(HTML_WPATH, HTML_PATH, HTML_TITLE);
+        query.setFields(DOC_WPATH, DOC_PATH, DOC_TITLE);
         query.setQuery(str);
-        query.addFilterQuery(HTML_WPATH + ":" + wpath);
+        query.addFilterQuery(DOC_WPATH + ":" + wpath);
         query.setStart(0);
         query.setRows(rows);
         QueryResponse response = solrClient.query(query);
