@@ -20,8 +20,8 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
@@ -36,6 +36,7 @@ import org.noggit.JSONUtil;
 import org.noggit.ObjectBuilder;
 import ru.org.sevn.common.solr.SolrIndexer;
 import ru.org.sevn.common.solr.SolrSelect;
+import ru.org.sevn.common.util.IOUtil;
 
 public abstract class AbstractStoreFileManager implements StoreFileManager {
 
@@ -154,8 +155,8 @@ public abstract class AbstractStoreFileManager implements StoreFileManager {
         ArrayList<SolrDocument> filesNotBackUp = new ArrayList<>();
         if (fileExists) {
             for (SolrDocument sd : files) {
-                if (sd.containsKey(PART_NAME)) {
-                    String partName = sd.getFieldValue(PART_NAME).toString();
+                if (sd.containsKey(SolrIndexer.DOC_PART)) {
+                    String partName = sd.getFieldValue(SolrIndexer.DOC_PART).toString();
                     int num = Integer.parseInt(partName.substring(1));
                     if (parts.containsKey(num)) {
                         filesNotBackUp.add(sd);
@@ -179,7 +180,8 @@ public abstract class AbstractStoreFileManager implements StoreFileManager {
                             Logger.getLogger(AbstractStoreFileManager.class.getName()).log(Level.SEVERE, null, ex);
                             return Errors.FATAL;
                         }
-                        File f1 = Paths.get(filesNotBackUp.get(0).get(SolrIndexer.DOC_PATH).toString()).toFile();
+                        String path = filesNotBackUp.get(0).get(SolrIndexer.DOC_PATH).toString();
+                        File f1 = this.dir.toPath().resolve(Paths.get(path)).toFile();;
                         File f2 = tempDir.resolve(file.getName()).toFile();
                         f1.renameTo(f2);
                         // get old tags
@@ -202,8 +204,10 @@ public abstract class AbstractStoreFileManager implements StoreFileManager {
                         
                         //override content
                         try {
-                            Files.move(file.getPath(), f2.toPath(), StandardCopyOption.REPLACE_EXISTING);
-                            Files.move(f2.toPath(), file.getPath(), StandardCopyOption.REPLACE_EXISTING);
+                            IOUtil.moveDirOverwrite(file.getPath().toFile(), f2, false);
+                            IOUtil.moveDirOverwrite(f2, file.getPath().toFile(), true);
+//                            Files.move(file.getPath(), f2.toPath(), StandardCopyOption.REPLACE_EXISTING);
+//                            Files.move(f2.toPath(), file.getPath(), StandardCopyOption.REPLACE_EXISTING);
                         } catch (IOException ex) {
                             Logger.getLogger(AbstractStoreFileManager.class.getName()).log(Level.SEVERE, null, ex);
                             return Errors.FATAL;
@@ -256,11 +260,23 @@ public abstract class AbstractStoreFileManager implements StoreFileManager {
             storeFileInfo(pi, file);
             //(String wpath, String path, File fl, String title, Consumer<Throwable> result) {
 
+            addedFile(file, pi);
             index(file, pi);
         } else {
             // TODO error
         }
         return null;
+    }
+    
+    private void addedFile(FileInfo file, PartInfo pi) {
+        String wpath = getStoreIdName();
+        String part = "p" + pi.getNum();
+        String uuid = getPathFromUUID(file.getUuid().toString()).toString();
+        String path = getRelative(dir, file.getPath().toFile());
+        String fullTitle = Paths.get(part, uuid).relativize(Paths.get(path)).toString();
+        Collection<String> tags = file.getTags();
+        
+        indexer.getLogger().log(wpath, part, fullTitle, uuid, tags);
     }
     
     private void index(FileInfo file, PartInfo pi) {

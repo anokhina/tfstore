@@ -98,12 +98,14 @@ public class App extends AbstractApp implements AppMBean {
     @Override
     protected void init() {
         startSolr();
-        indexer = new SolrIndexer(solrUrl, SOLR_COLLECTION);
+        indexer = new SolrIndexer(solrUrl, SOLR_COLLECTION, new StoreLogger(new File(storeDir, "logs")));
         storeDistribute = new StoreDistribute(storeDir, indexer, new String[] {"media", "video", "audio", "pictures", "books", "personal"});
     }
     
     @Override
     protected void clean() {
+        //TODO stop storeDistribute
+        indexer.getLogger().close();
         stopSolr();
     }
 

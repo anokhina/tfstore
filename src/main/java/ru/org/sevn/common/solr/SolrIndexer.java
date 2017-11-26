@@ -41,6 +41,7 @@ import org.apache.solr.common.SolrDocumentList;
 import org.apache.solr.common.SolrInputDocument;
 import org.apache.solr.common.util.ContentStream;
 import org.apache.solr.common.util.ContentStreamBase;
+import ru.org.sevn.tfstore.StoreLogger;
 
 public class SolrIndexer {
     /*
@@ -65,12 +66,19 @@ bin\solr stop -p 8983﻿
     private final SolrClient solrClient;
     private final ExecutorService executorService = Executors.newFixedThreadPool(1);
     
-    public SolrIndexer(String collection) {
-        this(DEFAULT_URL, collection);
+    private final StoreLogger logger;
+
+    public StoreLogger getLogger() {
+        return logger;
     }
     
-    public SolrIndexer(String url, String collection) {
+    public SolrIndexer(String collection, StoreLogger logger) {
+        this(DEFAULT_URL, collection, logger);
+    }
+    
+    public SolrIndexer(String url, String collection, StoreLogger logger) {
         solrClient = new HttpSolrClient.Builder(url + "/" + collection).build();
+        this.logger = logger;
         //deleteAll();
     }
     
